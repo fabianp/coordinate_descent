@@ -24,7 +24,8 @@ def l1_coordinate_descent(X, y, alpha, warm_start=None, max_iter=MAX_ITER):
             bb = beta.copy()
             bb[i] = 0.
             residual = np.dot(X[:, i], y - np.dot(X, bb).T)
-            beta[i] = np.sign(residual) * np.fmax(np.abs(residual) - alpha, 0) / np.dot(X[:, i], X[:, i])
+            beta[i] = np.sign(residual) * np.fmax(np.abs(residual) - alpha, 0) \
+                / np.dot(X[:, i], X[:, i])
     return beta
 
 
@@ -35,12 +36,16 @@ def shrinkage(X, y, alpha, beta, active_set, max_iter):
 
             bb[i] = 0
             residual = np.dot(X[:, i], y - np.dot(X, bb).T)
-            bb[i] = np.sign(residual) * np.fmax(np.abs(residual) - alpha, 0) / np.dot(X[:, i], X[:, i])
+            bb[i] = np.sign(residual) * np.fmax(np.abs(residual) - alpha, 0) \
+                / np.dot(X[:, i], X[:, i])
     return bb
 
 
 def l1_path(X, y, alphas, max_iter=MAX_ITER, verbose=False):
     """
+    The strategy is described in "Strong rules for discarding predictors in lasso-type problems"
+
+    alphas must be an increasing sequence of regularization parameters
 
     WARNING: does not compute intercept
     """
@@ -50,6 +55,8 @@ def l1_path(X, y, alphas, max_iter=MAX_ITER, verbose=False):
 
     active_set = np.arange(X.shape[1]).tolist()
     for k, a in enumerate(alphas_scaled):
+        if verbose:
+            print 'Current active set ', active_set
 
         if k > 0:
         # .. Strong rules for discarding predictors in lasso-type ..
@@ -66,7 +73,7 @@ def l1_path(X, y, alphas, max_iter=MAX_ITER, verbose=False):
         kkt_violations = True
         for i in strong_active_set:
             tmp = np.dot(X[:, i], y - np.dot(X, beta[k]))
-            if beta[k, i] != 0 and tmp != np.abs(alphas_scaled[k]):
+            if beta[k, i] != 0 and not np.allclose(tmp, np.abs(alphas_scaled[k])):
                 active_set.append(i)
             if beta[k, i] == 0 and abs(tmp) >= np.abs(alphas_scaled[k]):
                 active_set.append(i)
@@ -75,10 +82,12 @@ def l1_path(X, y, alphas, max_iter=MAX_ITER, verbose=False):
             active_set = np.where(beta[k] != 0)[0].tolist()
             kkt_violations = False
             if verbose:
-                'No KKT violations on first iteration'
+                print 'No KKT violations on active set'
 
         # .. recompute with new active set
         if kkt_violations:
+            if verbose:
+                print 'KKT violated on strong active set'
             beta[k] = shrinkage(X, y, a, beta[k], active_set, max_iter)
 
         # .. check KKT on all predictors ..
@@ -95,6 +104,8 @@ def l1_path(X, y, alphas, max_iter=MAX_ITER, verbose=False):
             kkt_violations = False
 
         if kkt_violations:
+            if verbose:
+                print 'KKT violated on full active set'
             beta[k] = shrinkage(X, y, a, beta[k], active_set, max_iter)
 
 
@@ -113,7 +124,9 @@ def check_kkt_lasso(xr, coef, penalty, tol=1e-3):
 
 if __name__ == '__main__':
     np.random.seed(0)
-    X = np.random.randn(100, 20)
-    y = np.random.randn(100)
+    from sklearn import datasets
+    diabetes = datasets.load_diabetes()
+    X = diabetes.data
+    y = diabetes.target
     #print l1_coordinate_descent(X, y, .001)
-    print l1_path(X, y, np.linspace(.001, .1, 5), verbose=True)
+    print l1_path(X, y, np.linspace(.1, 2., 5), verbose=True)
